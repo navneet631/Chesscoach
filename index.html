@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Chess Coach — Animated Edition</title>
+<style>
+:root{--bg:#10131a;--panel:#171c25;--panel2:#202733;--text:#f4f6fb;--muted:#9da7b8;--gold:#ffd65a;--accent:#6dd6ff;--light:#e9edf3;--dark:#506070}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,#263244 0,#10131a 42%,#0b0e13 100%);color:var(--text);font-family:Inter,system-ui,Arial,sans-serif;min-height:100vh}
+.app{max-width:1200px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(420px,720px) 330px;gap:20px}
+header{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.brand{font-size:26px;font-weight:900;letter-spacing:-.5px}.brand span{color:var(--gold)}button{border:0;border-radius:12px;padding:10px 14px;background:#2a3341;color:white;font-weight:800;cursor:pointer}button:hover{filter:brightness(1.12)}
+.game{background:rgba(23,28,37,.88);border:1px solid #303948;border-radius:22px;padding:16px;box-shadow:0 20px 60px #0006}
+.status{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;color:var(--muted);font-weight:700}.turn{color:white}
+.board{width:min(100%,680px);aspect-ratio:1;margin:auto;display:grid;grid-template-columns:repeat(8,1fr);border-radius:15px;overflow:hidden;box-shadow:0 18px 45px #0008;touch-action:none}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(30px,7vw,64px);user-select:none;cursor:pointer}.sq.light{background:#e5e0d3}.sq.dark{background:#536576}.sq.selected{box-shadow:inset 0 0 0 5px #ffd65a}.sq.legal:after{content:"";width:22%;height:22%;border-radius:50%;background:#1d2938aa;position:absolute}.sq.capture:after{content:"";position:absolute;inset:7%;border:5px solid #ffcf5c99;border-radius:50%}
+.coord{position:absolute;font-size:11px;font-weight:900;opacity:.6;left:5px;top:4px}.light .coord{color:#536576}.dark .coord{color:#e5e0d3}
+.piece{filter:drop-shadow(0 3px 2px #0008);transition:transform .18s ease}.sq.moving .piece{transform:scale(1.12)}
+.controls{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}.controls button.primary{background:linear-gradient(135deg,#f8c84b,#ff9e4b);color:#14171d}
+.moves{margin-top:14px;background:#11151c;border-radius:14px;padding:12px;max-height:120px;overflow:auto;font-family:ui-monospace,monospace;color:#cbd4e1}
+.sidebar{display:flex;flex-direction:column;gap:14px}.card{background:rgba(23,28,37,.9);border:1px solid #303948;border-radius:20px;padding:16px;box-shadow:0 15px 40px #0004}
+.coach-head{display:flex;justify-content:space-between;align-items:center}.coach-name{font-weight:900}.mood{color:var(--gold);font-weight:900}
+.coach-stage{height:330px;margin-top:10px;border-radius:16px;background:linear-gradient(#263141,#161b23);overflow:hidden;position:relative}
+.coach{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center}
+.coach svg{height:96%;width:100%;overflow:visible}.body,.head,.hair,.shirt,.arm,.hand{transform-box:fill-box;transform-origin:center}
+#coachGroup{transition:transform .35s ease}.blink{animation:blink 5s infinite}.breath{animation:breathe 3s ease-in-out infinite}.armMove{transition:transform .35s ease}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.coachText{font-size:16px;line-height:1.4;margin-top:10px;min-height:48px;color:#e8edf6}.stars{font-size:30px;letter-spacing:3px;color:#4b5563;min-height:40px}.stars .on{color:var(--gold);text-shadow:0 0 14px #ffd65a66}
+.kiss{position:absolute;left:50%;top:43%;font-size:30px;opacity:0;pointer-events:none}.kiss.fly{animation:kiss 1.2s ease-out}.kiss::before{content:"";display:block;width:30px;height:22px;border-radius:50% 50% 45% 45%;background:#ff7da7;transform:rotate(-18deg);box-shadow:0 0 12px #ff7da788}
+@keyframes kiss{0%{opacity:0;transform:translate(0,0) scale(.5)}20%{opacity:1}100%{opacity:0;transform:translate(120px,-90px) scale(1.15)}}
+.rating{display:flex;justify-content:space-between;color:var(--muted);font-size:13px}.rating strong{color:white}
+@media(max-width:900px){.app{grid-template-columns:1fr;padding:10px}.sidebar{display:grid;grid-template-columns:1fr}.coach-stage{height:280px}header{padding:4px}}
+@media(max-width:520px){.app{padding:7px}.game{padding:9px;border-radius:16px}.sq{font-size:11vw}.coord{font-size:9px}.coach-stage{height:250px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand">♟ CHESS <span>COACH</span></div><button id="newGame">New Game</button></header>
+<section class="game">
+<div class="status"><span>White</span><span class="turn" id="turn">Your move</span><span>Black · Coach</span></div>
+<div id="board" class="board"></div>
+<div class="controls"><button class="primary" id="hint">Ask Coach</button><button id="undo">Undo</button><button id="flip">Flip Board</button></div>
+<div class="moves" id="moves">Game started. Make your move.</div>
+</section>
+<aside class="sidebar">
+<div class="card">
+<div class="coach-head"><div class="coach-name">Coach Mira</div><div class="mood" id="mood">READY</div></div>
+<div class="coach-stage">
+<div class="coach">
+<svg viewBox="0 0 300 330" aria-label="Animated chess coach character">
+<g id="coachGroup" class="breath">
+<ellipse cx="150" cy="315" rx="85" ry="13" fill="#0006"/>
+<path class="shirt" d="M78 315 Q82 235 105 215 Q150 195 195 215 Q218 235 222 315Z" fill="#24384b"/>
+<path d="M125 213 L150 245 L175 213 L167 270 L133 270Z" fill="#d9e4ef"/>
+<path d="M150 245 L143 315 L157 315Z" fill="#16232f"/>
+<g class="arm" id="leftArm"><path d="M104 226 Q76 245 69 279 Q66 295 78 299 Q90 300 94 282 L120 250Z" fill="#f0b38e"/><circle cx="75" cy="291" r="10" fill="#e9a982"/></g>
+<g class="arm" id="rightArm"><path d="M196 226 Q224 246 232 276 Q236 292 224 298 Q212 302 208 284 L181 250Z" fill="#f0b38e"/><circle cx="226" cy="291" r="10" fill="#e9a982"/></g>
+<g class="head blink">
+<ellipse cx="150" cy="157" rx="58" ry="70" fill="#f0b38e"/>
+<path class="hair" d="M94 158 Q87 85 150 76 Q214 83 207 160 Q193 125 174 119 Q143 133 94 158Z" fill="#3b241e"/>
+<path d="M117 158 Q128 151 139 158" stroke="#3a241e" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M161 158 Q172 151 183 158" stroke="#3a241e" stroke-width="5" fill="none" stroke-linecap="round"/>
+<circle cx="130" cy="164" r="5" fill="#20242b"/><circle cx="170" cy="164" r="5" fill="#20242b"/>
+<path id="browL" d="M115 146 Q128 138 141 145" stroke="#3b241e" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path id="browR" d="M159 145 Q172 138 185 146" stroke="#3b241e" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path id="mouth" d="M132 190 Q150 202 168 190" stroke="#7d3f3b" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M117 188 Q150 217 183 188" fill="none" stroke="#d88f72" stroke-width="2"/>
+</g>
+</g></svg>
+</div>
+<div id="kiss" class="kiss"></div>
+</div>
+<div class="coachText" id="coachText">I'm watching. Show me what you've got.</div>
+<div class="stars" id="stars">★★★★★</div>
+<div class="rating"><span>Move quality</span><strong id="quality">—</strong></div>
+</div>
+<div class="card"><strong>How the stars work</strong><p style="color:var(--muted);line-height:1.5;margin-bottom:0">5★ = best move. 4★ = excellent. 3★ = solid. 2★ = inaccurate. 1★ = blunder. Your coach reacts to every move.</p></div>
+</aside>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+const game=new Chess(); const boardEl=document.getElementById('board'); let selected=null, flipped=false, history=[];
+const glyph={p:'♟',r:'♜',n:'♞',b:'♝',q:'♛',k:'♚'};
+function pieceChar(p){let g=glyph[p.type]; return p.color==='w'?g:g;}
+function render(){
+ boardEl.innerHTML='';
+ const files=['a','b','c','d','e','f','g','h'], ranks=[8,7,6,5,4,3,2,1];
+ const fs=flipped?[...files].reverse():files, rs=flipped?[...ranks].reverse():ranks;
+ let legal=[];
+ if(selected){legal=game.moves({square:selected,verbose:true});}
+ rs.forEach((r,ri)=>fs.forEach((f,fi)=>{
+  const s=f+r,p=game.get(s),el=document.createElement('div');
+  el.className='sq '+(((ri+fi)%2===0)?'light':'dark');
+  if(s===selected)el.classList.add('selected');
+  const lm=legal.find(x=>x.to===s); if(lm){el.classList.add(lm.captured?'capture':'legal')}
+  el.innerHTML=`<span class="coord">${fi===0?r:''}${ri===7?f:''}</span>${p?`<span class="piece">${pieceChar(p)}</span>`:''}`;
+  el.onclick=()=>clickSquare(s); boardEl.appendChild(el);
+ }));
+ document.getElementById('turn').textContent=game.turn()==='w'?'Your move':'Coach is thinking…';
+}
+function clickSquare(s){
+ if(game.game_over())return;
+ const p=game.get(s);
+ if(selected){
+  const move=game.move({from:selected,to:s,promotion:'q'});
+  if(move){ history.push(game.fen()); selected=null; render(); onPlayerMove(move); setTimeout(coachMove,650); return; }
+ }
+ if(p&&p.color===game.turn())selected=s; else selected=null; render();
+}
+function onPlayerMove(move){
+ const quality=rateMove(move); setRating(quality);
+ if(quality>=5){react('brilliant','BRILLIANT!','That was beautiful. Five stars — you earned it.',true)}
+ else if(quality>=4){react('happy','EXCELLENT','Very clean move. Keep the pressure on.',false)}
+ else if(quality>=3){react('calm','SOLID','Good move. There may be something even stronger.',false)}
+ else if(quality===2){react('concern','INACCURATE','Hmm… I think you can do better than that.',false)}
+ else{react('angry','BLUNDER','Oof. That move gives me a headache. Look again!',false)}
+ updateMoves();
+}
+function rateMove(m){
+ let score=3;
+ if(m.flags.includes('c')) score++;
+ if(m.san.includes('+')) score++;
+ if(m.san.includes('#')) score=5;
+ if(m.piece==='p' && Math.abs((+m.to[1])-(+m.from[1]))===2) score++;
+ return Math.max(1,Math.min(5,score));
+}
+function setRating(n){document.getElementById('stars').innerHTML=[1,2,3,4,5].map(i=>`<span class="${i<=n?'on':''}">★</span>`).join('');document.getElementById('quality').textContent=n+'/5'}
+function react(type,mood,text,kiss){
+ const cg=document.getElementById('coachGroup'),l=document.getElementById('leftArm'),r=document.getElementById('rightArm');
+ document.getElementById('mood').textContent=mood;document.getElementById('coachText').textContent=text;
+ cg.style.transform= type==='angry'?'rotate(-4deg) translateX(-4px)':type==='happy'||type==='brilliant'?'rotate(3deg) translateY(-5px)':'translateY(0)';
+ document.getElementById('mouth').setAttribute('d', type==='angry'?'M132 202 Q150 187 168 202':type==='happy'||type==='brilliant'?'M130 190 Q150 211 170 190':'M132 190 Q150 202 168 190');
+ if(type==='angry')l.style.transform='rotate(24deg)'; else if(type==='brilliant')r.style.transform='rotate(-28deg)'; else {l.style.transform='';r.style.transform=''}
+ if(kiss){const k=document.getElementById('kiss');k.classList.remove('fly');void k.offsetWidth;k.classList.add('fly')}
+ setTimeout(()=>{cg.style.transform='';l.style.transform='';r.style.transform=''},800);
+}
+function coachMove(){
+ if(game.game_over())return;
+ const moves=game.moves({verbose:true}); if(!moves.length)return;
+ let best=moves[0];
+ moves.forEach(m=>{if(m.flags.includes('c')||m.san.includes('+'))best=m});
+ const move=game.move(best); render(); updateMoves();
+ document.getElementById('mood').textContent='PLAYING';document.getElementById('coachText').textContent='Your turn. Can you find the reply?';
+ setTimeout(()=>{if(game.in_check())react('concern','CHECK!','Your king is under pressure. Stay sharp.',false)},150);
+}
+function updateMoves(){document.getElementById('moves').textContent=game.history().map((m,i)=>(i%2?'… ':'')+m).join('  ')}
+document.getElementById('newGame').onclick=()=>{game.reset();history=[];selected=null;setRating(0);document.getElementById('stars').innerHTML='★★★★★';document.getElementById('quality').textContent='—';react('calm','READY',"I'm watching. Show me what you've got.",false);updateMoves();render()};
+document.getElementById('undo').onclick=()=>{if(game.history().length>=2){game.undo();game.undo();selected=null;render();updateMoves();react('calm','READY','Back to the position. Your move.',false)}};
+document.getElementById('flip').onclick=()=>{flipped=!flipped;render()};
+document.getElementById('hint').onclick=()=>{const moves=game.moves({verbose:true});if(!moves.length)return;const m=moves.find(x=>x.flags.includes('c'))||moves.find(x=>x.san.includes('+'))||moves[0];selected=m.from;render();react('happy','HINT','Try the highlighted move. I think you’ll like it.',false)};
+render();
+</script>
+</body></html>
