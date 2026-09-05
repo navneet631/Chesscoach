@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Navneet Chess Coach — Working Review</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#111827;color:#f3f4f6;font-family:Arial,sans-serif}
+.wrap{max-width:760px;margin:auto;padding:12px}
+h1{font-size:22px;margin:4px 0 2px}.sub{color:#9ca3af;font-size:12px;margin-bottom:10px}
+.card{background:#1f2937;border-radius:14px;padding:12px;margin:10px 0;box-shadow:0 4px 18px #0005}
+textarea{width:100%;min-height:120px;background:#111827;color:#fff;border:1px solid #374151;border-radius:10px;padding:10px;font-family:monospace}
+button{border:0;border-radius:9px;padding:9px 12px;margin:4px;background:#374151;color:white;font-weight:700}
+button.primary{background:#2563eb}button:disabled{opacity:.45}
+#status{font-size:13px;color:#cbd5e1;margin:8px 0}
+.board{width:min(92vw,520px);aspect-ratio:1;margin:10px auto;display:grid;grid-template-columns:repeat(8,1fr);border:3px solid #0b1220;border-radius:8px;overflow:hidden}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;font-size:clamp(28px,9vw,54px);line-height:1}
+.light{background:#f0d9b5}.dark{background:#b58863}
+.last{box-shadow:inset 0 0 0 4px #facc15}
+.arrow{position:absolute;font-size:18px;right:3px;top:2px}
+.book{position:absolute;left:3px;top:2px;font-size:17px}
+.moves{display:flex;flex-wrap:wrap;gap:3px;max-height:170px;overflow:auto}
+.mv{margin:0;padding:6px 8px;font-size:12px}
+.mv.active{background:#2563eb}.mv.bookmv{background:#075985}
+.eval{font-size:26px;font-weight:800}.small{font-size:12px;color:#9ca3af}
+.tip{font-size:15px;line-height:1.4;background:#111827;border-radius:10px;padding:10px}
+.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#374151;font-size:12px;margin:2px}
+.good{background:#166534}.bad{background:#991b1b}.bookpill{background:#075985}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+<h1>♟ Navneet Chess Coach</h1>
+<div class="sub">Mobile-friendly • no Stockfish worker • uses online chess analysis when available</div>
+
+<div class="card">
+<textarea id="pgn" placeholder="Paste your Chess.com PGN here"></textarea>
+<div>
+<button class="primary" onclick="loadPGN()">Load Game</button>
+<button onclick="sample()">Use Sample</button>
+</div>
+<div id="status">Ready.</div>
+</div>
+
+<div class="card">
+<div id="board" class="board"></div>
+<div class="row">
+<button onclick="prevMove()">◀ Previous</button>
+<span id="moveTitle">Start position</span>
+<button onclick="nextMove()">Next ▶</button>
+</div>
+</div>
+
+<div class="card">
+<div class="row"><b>Move Review</b><span id="label" class="pill">—</span></div>
+<div id="eval" class="eval">—</div>
+<div id="best" class="small">Best move: —</div>
+<div class="small">Book recognition uses the opening database when online.</div>
+</div>
+
+<div class="card">
+<b>Coach Navneet 🧑‍🏫</b>
+<div id="coach" class="tip">Load a PGN and tap a move. I'll tell you what the position says.</div>
+</div>
+
+<div class="card">
+<b>All moves</b>
+<div id="moves" class="moves"></div>
+</div>
+</div>
+
+<script>
+var gameMoves=[], positions=[], current=0, analysisCache={};
+var pgnBox=document.getElementById('pgn');
+
+function sample(){
+pgnBox.value='[Event "Chess.com"]\\n[White "MachMal"]\\n[Black "Navneetpositron1"]\\n[Result "0-1"]\\n\\n1. e4 d5 2. exd5 Qxd5 3. Nc3 Qd8 4. Nf3 Nf6 5. d4 Nc6 6. g3 Be6 7. Bg2 Qd6 8. O-O O-O-O 9. Be3 Ng4 10. Bf4 Qd7 11. Ng5 Rg8 12. Nxf7 Bxf7 13. Bh3 Be6 14. Nb5 Nxd4 15. Nxa7+ Kb8 16. Nb5 Nxb5 17. Qxd7 Rxd7 18. Rad1 g5 19. Rxd7 Bxd7 20. Rd1 Kc8 21. Be3 Nd6 22. b4 Bg7 23. a4 Rf8 24. Bxg5 Nxf2 25. Bxe7 Rf7 26. Bxd7+ Kxd7 27. Bh4 Nxd1 0-1';
+}
+
+function loadPGN(){
+try{
+var g=new Chess();
+var txt=pgnBox.value.trim();
+if(!txt) throw new Error('Paste a PGN first.');
+if(!g.load_pgn(txt,{sloppy:true})) throw new Error('PGN could not be read.');
+gameMoves=[];positions=[new Chess().fen()];
+var hist=g.history({verbose:true});
+var replay=new Chess();
+for(var i=0;i<hist.length;i++){
+ var m=replay.move(hist[i].san,{sloppy:true});
+ if(!m) throw new Error('Could not replay move '+(i+1));
+ gameMoves.push({san:m.san,from:m.from,to:m.to,color:m.color,ply:i+1,fen:replay.fen()});
+ positions.push(replay.fen());
+}
+current=0; renderMoves(); render(); setStatus('Game loaded. Tap a move to review it.');
+}catch(e){setStatus('Error: '+e.message);}
+}
+
+function setStatus(s){document.getElementById('status').innerHTML=s}
+function renderMoves(){
+var box=document.getElementById('moves'); box.innerHTML='';
+for(var i=0;i<gameMoves.length;i++){
+ var b=document.createElement('button'); b.className='mv'; b.innerHTML=((i%2===0)?((i/2|0)+1)+'. ':'')+gameMoves[i].san;
+ b.onclick=(function(n){return function(){current=n;render();}})(i+1);
+ box.appendChild(b);
+}
+}
+
+function pieceChar(p){
+var map={'wK':'♔','wQ':'♕','wR':'♖','wB':'♗','wN':'♘','wP':'♙','bK':'♚','bQ':'♛','bR':'♜','bB':'♝','bN':'♞','bP':'♟'};
+return map[p.color+p.type];
+}
+
+function isBook(fen, move){
+return new Promise(function(resolve){
+var url='https://explorer.lichess.ovh/masters?fen='+encodeURIComponent(fen)+'&moves=12';
+xhr(url,function(ok,data){
+ if(!ok){resolve(false);return}
+ try{
+  var j=JSON.parse(data), uci=move.from+move.to;
+  for(var i=0;i<(j.moves||[]).length;i++){
+   if(j.moves[i].uci===uci){resolve(true);return}
+  }
+ }catch(e){}
+ resolve(false);
+});
+});
+}
+
+function render(){
+var board=document.getElementById('board'); board.innerHTML='';
+var g=new Chess(positions[current]); var last=current>0?gameMoves[current-1]:null;
+var bookPromise=last?isBook(positions[current-1],last):Promise.resolve(false);
+bookPromise.then(function(book){drawBoard(g,last,book); updateInfo(book);});
+}
+
+function drawBoard(g,last,book){
+var board=document.getElementById('board');
+for(var r=0;r<8;r++)for(var c=0;c<8;c++){
+ var sq=document.createElement('div'); sq.className='sq '+(((r+c)%2===0)?'light':'dark');
+ var file='abcdefgh'[c], rank=8-r, name=file+rank, p=g.get(name);
+ if(last && (last.from===name||last.to===name)) sq.className+=' last';
+ if(p) sq.innerHTML=pieceChar(p);
+ if(book && last && last.to===name) sq.innerHTML += '<span class="book">📖</span>';
+ board.appendChild(sq);
+}
+document.getElementById('moveTitle').innerHTML=current===0?'Start position':('Move '+current+' — '+gameMoves[current-1].san);
+var bs=document.querySelectorAll('.mv'); for(var i=0;i<bs.length;i++)bs[i].className='mv'+(i===current-1?' active':'');
+}
+
+function updateInfo(book){
+if(current===0){
+ document.getElementById('label').innerHTML='Start';
+ document.getElementById('eval').innerHTML='—';
+ document.getElementById('best').innerHTML='Best move: ask engine after selecting a move.';
+ document.getElementById('coach').innerHTML='Pick a move. I will check whether it was a book move and ask the online engine for a stronger continuation.';
+ return;
+}
+var mv=gameMoves[current-1];
+document.getElementById('label').className='pill '+(book?'bookpill':'');
+document.getElementById('label').innerHTML=book?'📖 BOOK MOVE':'Reviewing…';
+document.getElementById('coach').innerHTML=book?'📖 Nice — this move appears in the Lichess Masters opening database. I’ll also check the position for an engine suggestion.':'Let me check the position online…';
+analyze(mv);
+}
+
+function analyze(mv){
+var key=mv.ply;
+if(analysisCache[key]){showAnalysis(analysisCache[key]);return;}
+var before=positions[mv.ply-1];
+var url='https://lichess.org/api/cloud-eval?fen='+encodeURIComponent(before)+'&multiPv=3&variant=standard';
+xhr(url,function(ok,data){
+if(!ok){showAnalysis({error:true});return}
+try{
+ var j=JSON.parse(data), pvs=j.pvs||[];
+ if(!pvs.length){showAnalysis({error:true});return}
+ var best=pvs[0].moves.split(' ')[0];
+ var played=mv.from+mv.to;
+ var same=best===played;
+ var score=pvs[0].cp;
+ var out={best:best,cp:score,same:same,depth:j.depth||0};
+ analysisCache[key]=out; showAnalysis(out);
+}catch(e){showAnalysis({error:true});}
+});
+}
+
+function showAnalysis(a){
+if(a.error){
+ document.getElementById('eval').innerHTML='Engine unavailable';
+ document.getElementById('best').innerHTML='Best move: —';
+ document.getElementById('coach').innerHTML='The visual review still works. For engine analysis, open this file in Chrome/Samsung Internet with internet enabled.';
+ return;
+}
+var best=a.best, bmv=new Chess(positions[current-1]).move({from:best.slice(0,2),to:best.slice(2,4),promotion:best.length>4?best[4]:'q'});
+var name=bmv?bmv.san:best;
+document.getElementById('eval').innerHTML=(a.cp>=0?'+':'')+(a.cp/100).toFixed(2);
+document.getElementById('best').innerHTML='Best move: <b>'+name+'</b> • depth '+a.depth;
+if(a.same){
+ document.getElementById('label').className='pill good';
+ document.getElementById('label').innerHTML='✓ BEST';
+ document.getElementById('coach').innerHTML='Excellent — you played the engine’s top move here. 🧑‍🏫';
+}else{
+ document.getElementById('label').className='pill bad';
+ document.getElementById('label').innerHTML='ENGINE DIFFERENCE';
+ document.getElementById('coach').innerHTML='Navneet, the engine prefers <b>'+name+'</b>. Your move was '+gameMoves[current-1].san+'. The arrow can be added next, but this version keeps the board lightweight for your phone.';
+}
+}
+
+function xhr(url,cb){
+try{
+ var x=new XMLHttpRequest(); x.open('GET',url,true); x.timeout=12000;
+ x.onreadystatechange=function(){if(x.readyState===4) cb(x.status>=200&&x.status<300,x.responseText)};
+ x.onerror=function(){cb(false,'')}; x.ontimeout=function(){cb(false,'')}; x.send();
+}catch(e){cb(false,'')}
+}
+function prevMove(){if(current>0){current--;render()}}
+function nextMove(){if(current<gameMoves.length){current++;render()}}
+sample(); loadPGN();
+</script>
+</body>
+</html>
