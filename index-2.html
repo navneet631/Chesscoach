@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hello Kitty Chess Coach</title>
+<style>
+:root{
+  --bg:#0b0d10; --panel:#15191f; --panel2:#1c222b; --line:#2a323d;
+  --text:#f4f6f8; --muted:#9ba6b4; --blue:#4d8dff; --orange:#8b3f08;
+  --green:#1d8a50; --red:#b33b3b; --gold:#d9a441;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#1a2029 0,#0b0d10 45%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.app{max-width:1120px;margin:auto;padding:18px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:48px;height:48px;border-radius:14px;background:#fff;display:grid;place-items:center;font-size:30px;box-shadow:0 8px 24px #0008}
+h1{font-size:22px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.badge{padding:8px 11px;border:1px solid var(--line);border-radius:999px;color:#dfe6ef;background:#11151a;font-size:12px}
+.grid{display:grid;grid-template-columns:minmax(300px,680px) minmax(280px,1fr);gap:16px}
+.card{background:linear-gradient(180deg,#171c23,#12161c);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 16px 40px #0005}
+textarea{width:100%;min-height:120px;resize:vertical;background:#0c1015;color:#e8edf3;border:1px solid #303945;border-radius:12px;padding:12px;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+button{border:0;border-radius:10px;padding:10px 14px;background:#293241;color:#fff;font-weight:700;cursor:pointer}
+button.primary{background:#2867df}button:active{transform:translateY(1px)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.status{font-size:12px;color:#b8c1cc;margin-top:8px;min-height:18px}
+.board-wrap{position:relative;margin:12px auto;max-width:650px}
+.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border-radius:12px;overflow:hidden;border:5px solid #20262f;box-shadow:0 18px 45px #0008;position:relative}
+.sq{display:grid;place-items:center;position:relative;font-size:clamp(30px,8vw,64px);user-select:none;cursor:pointer}
+.sq.light{background:#d7d9d4}.sq.dark{background:#60716c}
+.sq.last{box-shadow:inset 0 0 0 5px #d6a52e99}
+.sq.selected{box-shadow:inset 0 0 0 5px #4d8dff}
+.piece{font-family:"DejaVu Sans","Noto Sans Symbols 2",serif;line-height:1;filter:drop-shadow(0 2px 1px #0008);transition:transform .22s,color .22s,filter .22s}
+.whitepiece{color:#f7f7f4;text-shadow:0 2px 2px #111}
+.blackpiece{color:#16191c;text-shadow:0 1px 0 #aaa}
+.brilliant .piece{color:#8b3f08!important;text-shadow:0 2px 2px #000;transform:scale(1.06)}
+.great .piece{color:#1d8a50!important;text-shadow:0 2px 2px #000;transform:scale(1.04)}
+.bookmark{position:absolute;right:4px;top:3px;font-size:15px;filter:none}
+.evalbar{height:8px;background:#252c35;border-radius:999px;overflow:hidden;margin:10px 0}.evalfill{height:100%;background:#e8ecef;width:50%;transition:width .5s}
+.coach{min-height:110px;display:flex;gap:12px}.kitty{font-size:48px}.coach h2{font-size:16px;margin:0 0 5px}.coach p{margin:0;color:#c4ccd6;font-size:13px;line-height:1.45}
+.moves{max-height:330px;overflow:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px}
+.move{background:#10151b;border:1px solid #252e39;border-radius:8px;padding:7px;font-size:12px;cursor:pointer}
+.move.active{border-color:#5b91ff;background:#17243b}.move .tag{float:right;font-weight:800}.book{color:#d9a441}.brilliantTag{color:#d87920}.greatTag{color:#43c978}.blunderTag{color:#ff6565}
+.opening{font-weight:800;color:#f0c96b;font-size:13px}.small{font-size:11px;color:var(--muted)}
+.overlay{position:absolute;inset:0;pointer-events:none;display:none;z-index:5}
+.overlay.show{display:block}
+.fork-line{position:absolute;height:5px;background:#8b3f08;border-radius:5px;transform-origin:left center;box-shadow:0 0 18px #8b3f08;animation:draw .45s ease-out forwards}
+@keyframes draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.checkmate{position:absolute;inset:0;display:grid;place-items:center;background:#000b;backdrop-filter:blur(2px);animation:mateIn .7s ease-out}
+.checkmate span{font-size:clamp(28px,8vw,70px);font-weight:900;letter-spacing:2px;color:#fff;text-shadow:0 0 22px #ff4040;animation:pulse 1s infinite}
+@keyframes mateIn{from{opacity:0}to{opacity:1}}@keyframes pulse{50%{transform:scale(1.06)}}
+.cut-piece{position:absolute;font-size:52px;animation:cut .8s ease-in forwards}
+@keyframes cut{0%{opacity:1;transform:scale(1) rotate(0)}35%{transform:scale(1.08)}100%{opacity:0;transform:translateX(18px) rotate(90deg) scale(.9)}}
+.cut-half{position:absolute;font-size:clamp(32px,8vw,64px);line-height:1;filter:drop-shadow(0 3px 2px #000);animation:halfCut .75s ease-in forwards}
+.cut-half.left{clip-path:inset(0 50% 0 0);transform-origin:50% 50%}
+.cut-half.right{clip-path:inset(0 0 0 50%);transform-origin:50% 50%}
+@keyframes halfCut{0%{opacity:1;transform:translateX(0) rotate(0) scale(1)}100%{opacity:0;transform:translateX(var(--dx)) rotate(var(--rot)) scale(.82)}}
+@media(max-width:820px){.grid{grid-template-columns:1fr}.app{padding:10px}.card{padding:11px}.badge{display:none}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+</head>
+<body>
+<div class="app">
+<header>
+ <div class="brand"><div class="logo">😺</div><div><h1>Hello Kitty Chess Coach</h1><div class="sub">Game review • opening recognition • book moves • animated tactics</div></div></div>
+ <div class="badge">♟ Game Review</div>
+</header>
+
+<div class="card">
+ <textarea id="pgn" spellcheck="false">[Event "Demo Game"]
+[White "Player"]
+[Black "Opponent"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6</textarea>
+ <div class="row"><button class="primary" id="load">Load Game</button><button id="sample">Demo</button><button id="reset">Reset</button></div>
+ <div id="status" class="status">Ready.</div>
+</div>
+
+<div class="grid">
+ <main class="card">
+  <div class="board-wrap">
+   <div id="board" class="board"></div>
+   <div id="overlay" class="overlay"></div>
+  </div>
+  <div class="row">
+   <button id="prev">← Previous</button><button id="next" class="primary">Next →</button><button id="first">⏮ First</button><button id="last">Last ⏭</button>
+  </div>
+  <div class="evalbar"><div id="evalfill" class="evalfill"></div></div>
+  <div class="small" id="evaltext">Evaluation: —</div>
+ </main>
+
+ <aside class="card">
+  <div class="coach">
+   <div class="kitty">😺</div>
+   <div><h2>Hello Kitty Coach</h2><p id="coach">Load a game and I'll explain the position.</p><div id="opening" class="opening"></div></div>
+  </div>
+  <hr style="border:0;border-top:1px solid #29313b;margin:14px 0">
+  <div style="font-weight:800">Moves</div>
+  <div id="moves" class="moves"></div>
+ </aside>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const pieceChars={p:"♟",n:"♞",b:"♝",r:"♜",q:"♛",k:"♚"};
+const game=new Chess();
+let sans=[], positions=[], infos=[], ply=0, currentEval=null, currentOpening=null;
+
+function esc(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function uciFromHistory(moves){
+ const c=new Chess(), out=[];
+ moves.forEach(m=>{const before=c.fen(); const mv=c.move(m); if(mv) out.push(mv.from+mv.to+(mv.promotion||""));});
+ return out;
+}
+function loadPGN(){
+ const text=$("pgn").value.trim();
+ game.reset();
+ if(!game.load_pgn(text,{sloppy:true})){ $("status").textContent="PGN could not be read. Check the move list."; return; }
+ sans=game.history();
+ positions=[];
+ const c=new Chess(); positions.push(c.fen());
+ sans.forEach(m=>{c.move(m);positions.push(c.fen())});
+ infos=sans.map((m,i)=>({san:m,class:"",eval:null,best:null,book:false,opening:""}));
+ ply=0; render(); $("status").textContent="Game loaded. Checking openings and analysis…"; analyzeAll();
+}
+function render(){
+ const c=new Chess(positions[ply]);
+ const board=$("board"); board.innerHTML="";
+ const hist=ply?c.history():[];
+ const prev=ply?sans[ply-1]:"";
+ let lastFrom="",lastTo="";
+ if(ply){const tmp=new Chess(positions[ply-1]);const mv=tmp.move(sans[ply-1]);if(mv){lastFrom=mv.from;lastTo=mv.to}}
+ const br=infos[ply-1]?.class||""; board.className="board "+(br==="Brilliant"?"brilliant":br==="Great"?"great":"");
+ for(let r=0;r<8;r++)for(let f=0;f<8;f++){
+   const sq="abcdefgh"[f]+(8-r), piece=c.get(sq);
+   const d=document.createElement("div"); d.className="sq "+(((r+f)%2===0)?"light":"dark");
+   if(sq===lastFrom||sq===lastTo)d.classList.add("last");
+   if(piece){const sp=document.createElement("span");sp.className="piece "+(piece.color==="w"?"whitepiece":"blackpiece");sp.textContent=pieceChars[piece.type];d.appendChild(sp)}
+   if(infos[ply-1]?.book && sq===lastTo){const b=document.createElement("span");b.className="bookmark";b.textContent="📖";d.appendChild(b)}
+   board.appendChild(d);
+ }
+ $("moves").innerHTML="";
+ infos.forEach((x,i)=>{const m=document.createElement("div");m.className="move "+(i===ply-1?"active":"");const tag=x.class||"";let color=tag==="Brilliant"?"brilliantTag":tag==="Great"?"greatTag":tag==="Blunder"?"blunderTag":"";m.innerHTML=`${i%2===0?Math.floor(i/2+1)+". ":"… "}<b>${esc(x.san)}</b> <span class="tag ${color}">${esc(tag)}${x.book?" 📖":""}</span>`;m.onclick=()=>{ply=i+1;render();analyzePosition()};$("moves").appendChild(m)});
+ const info=infos[ply-1]; $("opening").textContent=currentOpening?("Opening: "+currentOpening):"";
+ $("coach").textContent=coachText(info);
+}
+function coachText(info){
+ if(!info) return "Make a move or load a game. I'll look for book moves, tactics and mistakes.";
+ if(info.book) return `📖 Book move. Nice — this position follows established opening theory.${info.opening?" This is "+info.opening+".":""}`;
+ if(info.class==="Brilliant") return "✨ Brilliant! This move is a strong tactical idea. Watch the highlighted pieces — this is the kind of move that changes the position.";
+ if(info.class==="Great") return "🟢 Great move. You found a strong continuation and kept the position under control.";
+ if(info.class==="Best") return "⭐ Best move. This matches the strongest line found in the available analysis.";
+ if(info.class==="Excellent") return "👍 Excellent move. Very close to the engine's top choice.";
+ if(info.class==="Mistake") return "🟠 Mistake. There was a stronger option. I would slow down here and look for checks, captures and threats.";
+ if(info.class==="Blunder") return "🔴 Blunder. This gives away a significant advantage. Let's find the safer move.";
+ return "Good move. Keep looking for forcing moves and your opponent's threats.";
+}
+async function json(url){
+ const r=await fetch(url,{headers:{"Accept":"application/json"}});
+ if(!r.ok) throw new Error(r.status);
+ return await r.json();
+}
+async function openingForMoves(moves){
+ try{
+  const u=uciFromHistory(moves);
+  const url="https://explorer.lichess.ovh/masters?play="+encodeURIComponent(u.join(","));
+  const d=await json(url);
+  return d.opening||null;
+ }catch(e){return null}
+}
+async function evalFen(fen){
+ try{return await json("https://lichess.org/api/cloud-eval?fen="+encodeURIComponent(fen)+"&multiPv=3&variant=standard")}catch(e){return null}
+}
+function cp(d){if(!d||!d.pvs||!d.pvs[0])return null;const p=d.pvs[0];return p.mate!=null?(p.mate>0?100000:-100000):p.cp}
+function moverScore(white,centipawn){return white?centipawn:-centipawn}
+async function analyzeAll(){
+ for(let i=0;i<sans.length;i++){
+  const before=new Chess(positions[i]), after=new Chess(positions[i+1]);
+  const white=before.turn()==="w";
+  const [ev0,ev1,op]=await Promise.all([evalFen(positions[i]),evalFen(positions[i+1]),openingForMoves(sans.slice(0,i+1))]);
+  const b=cp(ev0), a=cp(ev1);
+  infos[i].eval=a; infos[i].opening=op?.name||"";
+  infos[i].book=!!op;
+  if(b!=null&&a!=null){
+   const bestLine=ev0?.pvs?.[0]?.moves||"";
+   const bestUci=bestLine.split(" ")[0]||"";
+   const actual=before.move(sans[i],{sloppy:true});
+   const actualUci=actual?actual.from+actual.to+(actual.promotion||""):"";
+   const loss=moverScore(white,b)-moverScore(white,a);
+   const tactical=isThreeFork(after,actual);
+   let cls="Good";
+   if(tactical&&loss<=80) cls="Brilliant";
+   else if(actualUci===bestUci||loss<=12) cls="Best";
+   else if(loss<=30) cls="Excellent";
+   else if(loss<=65) cls="Great";
+   else if(loss<=130) cls="Inaccuracy";
+   else if(loss<=220) cls="Mistake";
+   else cls="Blunder";
+   infos[i].class=cls; infos[i].best=bestUci;
+  }else infos[i].class=infos[i].book?"Book":"Good";
+  if(i===ply-1) analyzePosition();
+ }
+ $("status").textContent="Analysis complete where cloud data was available.";
+ render();
+}
+function isThreeFork(c,mv){
+ if(!mv||mv.piece!=="n")return false;
+ const attacked=[];
+ for(const sq of ["a8","b8","c8","d8","e8","f8","g8","h8","a7","b7","c7","d7","e7","f7","g7","h7","a6","b6","c6","d6","e6","f6","g6","h6","a5","b5","c5","d5","e5","f5","g5","h5","a4","b4","c4","d4","e4","f4","g4","h4","a3","b3","c3","d3","e3","f3","g3","h3","a2","b2","c2","d2","e2","f2","g2","h2","a1","b1","c1","d1","e1","f1","g1","h1"]){
+   const p=c.get(sq); if(p&&p.color!==mv.color&&"qrb".includes(p.type)) {
+    const legal=c.moves({square:mv.to,verbose:true}); if(legal.some(x=>x.to===sq)) attacked.push(sq);
+   }
+ }
+ return attacked.length>=3;
+}
+async function analyzePosition(){
+ const fen=positions[ply]; const d=await evalFen(fen); currentEval=cp(d);
+ $("evaltext").textContent=currentEval==null?"Evaluation: unavailable":`Evaluation: ${currentEval>=0?"+":""}${(currentEval/100).toFixed(2)}`;
+ const pct=currentEval==null?50:Math.max(5,Math.min(95,50+currentEval/12));$("evalfill").style.width=pct+"%";
+ currentOpening=(infos[ply-1]?.opening)||"";
+ render();
+ if(infos[ply-1]?.class==="Brilliant") animateBrilliant();
+ if(ply>=2 && infos[ply-2]?.class==="Brilliant" && /x/.test(sans[ply-1])) animateQueenCut();
+ if(gameAtMate()) animateMate();
+}
+function gameAtMate(){const c=new Chess(positions[ply]);return c.game_over()&&c.in_checkmate()}
+function animateMate(){const o=$("overlay");o.innerHTML='<div class="checkmate"><span>CHECKMATE ♔</span></div>';o.classList.add("show");setTimeout(()=>o.classList.remove("show"),1800)}
+function animateQueenCut(){
+ const o=$("overlay"); o.innerHTML="";
+ const c=new Chess(positions[ply-1]), mv=c.move(sans[ply-1],{sloppy:true});
+ if(!mv||!mv.captured||mv.captured!=="q") return;
+ const rect=$("board").getBoundingClientRect(), cell=rect.width/8;
+ const x=(mv.to.charCodeAt(0)-97)*cell, y=(8-parseInt(mv.to[1]))*cell;
+ ["left","right"].forEach(side=>{
+   const el=document.createElement("div"); el.className="cut-half "+side; el.textContent="♛";
+   el.style.left=x+"px"; el.style.top=y+"px";
+   el.style.setProperty("--dx",side==="left"?(-cell*.42)+"px":(cell*.42)+"px");
+   el.style.setProperty("--rot",side==="left"?(-18)+"deg":"18deg");
+   o.appendChild(el);
+ });
+ o.classList.add("show"); setTimeout(()=>o.classList.remove("show"),900);
+}
+function animateBrilliant(){
+ const o=$("overlay");o.innerHTML="";
+ const c=new Chess(positions[ply-1]);const mv=c.move(sans[ply-1],{sloppy:true}); if(!mv)return;
+ // dark tactical flash
+ $("board").style.filter="brightness(.35)";
+ setTimeout(()=>{$("board").style.filter="";},950);
+ // Draw three fork rays from the knight's square to valuable enemy pieces when possible.
+ const targets=[];
+ for(const sq of ["a8","b8","c8","d8","e8","f8","g8","h8","a7","b7","c7","d7","e7","f7","g7","h7","a6","b6","c6","d6","e6","f6","g6","h6","a5","b5","c5","d5","e5","f5","g5","h5","a4","b4","c4","d4","e4","f4","g4","h4","a3","b3","c3","d3","e3","f3","g3","h3","a2","b2","c2","d2","e2","f2","g2","h2","a1","b1","c1","d1","e1","f1","g1","h1"]){
+  const p=c.get(sq); if(p&&p.color!==mv.color&&"qrb".includes(p.type)){const q=c.moves({square:mv.to,verbose:true});if(q.some(x=>x.to===sq))targets.push(sq)}
+ }
+ if(targets.length<3)return;
+ const rect=$("board").getBoundingClientRect(), cell=rect.width/8;
+ const center=s=>({x:(s.charCodeAt(0)-97+.5)*cell,y:(8-parseInt(s[1])-.5)*cell});
+ targets.slice(0,3).forEach(t=>{const a=center(mv.to),b=center(t),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);const l=document.createElement("div");l.className="fork-line";l.style.left=a.x+"px";l.style.top=a.y+"px";l.style.width=len+"px";l.style.transform=`rotate(${Math.atan2(dy,dx)}rad)`;o.appendChild(l)});
+ o.classList.add("show");setTimeout(()=>o.classList.remove("show"),1100);
+}
+$("load").onclick=loadPGN;
+$("sample").onclick=()=>{$("pgn").value=`[Event "Demo Game"]\n[White "Player"]\n[Black "Opponent"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6`;loadPGN()};
+$("reset").onclick=()=>{$("pgn").value="";game.reset();sans=[];positions=[game.fen()];infos=[];ply=0;currentOpening=null;render();$("status").textContent="Reset."};
+$("prev").onclick=()=>{if(ply>0){ply--;analyzePosition()}};
+$("next").onclick=()=>{if(ply<sans.length){ply++;analyzePosition()}};
+$("first").onclick=()=>{ply=0;analyzePosition()};$("last").onclick=()=>{ply=sans.length;analyzePosition()};
+positions=[game.fen()];render();
+</script>
+</body>
+</html>
